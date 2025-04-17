@@ -12,8 +12,9 @@ async fn main() {
         "help" => { com::help::show_help() }
 
         "fswatch" => { com::fswatch::main(a).await }
-        
-        
+
+        "webcrawl" => { com::webcrawl::main(a).await }
+    
         _ => { com::help::unknown_command() }
     }
 }

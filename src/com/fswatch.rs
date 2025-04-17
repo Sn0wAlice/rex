@@ -1,7 +1,6 @@
 use crate::helper::args::Args;
 
-use notify::{Config, Event, RecommendedWatcher, RecursiveMode, Result, Watcher};
-use std::env::temp_dir;
+use notify::{Config, Event, RecommendedWatcher, RecursiveMode, Watcher};
 use std::path::PathBuf;
 use std::sync::mpsc::channel;
 use std::time::Duration;
@@ -63,9 +62,9 @@ fn string_to_pathbuf(path: &str) -> PathBuf {
 
 
 async fn show_help() {
-    println!(">>>> fswatch help  <<<<\n");
+    println!(">>>> fswatch help <<<<\n");
     println!("Usage: fswatch --path=<path>");
     println!("Options:");
-    println!("  --path=<path>   The path to watch");
+    println!("  --path=<path>   (required) The path to watch");
     println!("  --help          Show this help message");
 }

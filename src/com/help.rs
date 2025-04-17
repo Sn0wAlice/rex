@@ -5,7 +5,7 @@ let help_text = r#"
           / _) /
    .-^^^-/ /
   /       /
-<__.|_|-|_|
+<_.|_|-|_|
 
 
 rex - A simple command line tool for, euuuu, 
@@ -13,17 +13,22 @@ rex - A simple command line tool for, euuuu,
        ... cybersecurity?
        ... pentesting?
 
-Never mind, just use it for whatever you want with it. (except for illegal stuff, of course)
+Never mind, just use it for whatever you want with it. 
+       (except for illegal stuff, of course)
        (or do, i don't care)
        (but don't tell me about it, please)
 
 General Commands: 
     help       Show this help message
 
+Web shit
+    webcrawl   Crawl a website for links and resources
+
 File System Commands:
     fswatch    Watch a folder for changes in real-time
 
 
+Notes: 
 type 'rex <command> --help' for more information about a command
 "#;
 
