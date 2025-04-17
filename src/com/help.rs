@@ -23,6 +23,7 @@ General Commands:
 
 Web shit
     webcrawl   Crawl a website for links and resources
+    gallery-dl Download all media from a web page
 
 File System Commands:
     fswatch    Watch a folder for changes in real-time

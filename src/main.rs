@@ -14,6 +14,7 @@ async fn main() {
         "fswatch" => { com::fswatch::main(a).await }
 
         "webcrawl" => { com::webcrawl::main(a).await }
+        "gallery-dl" => { com::gallery_dl::main(a).await }
     
         _ => { com::help::unknown_command() }
     }
