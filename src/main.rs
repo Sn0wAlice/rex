@@ -3,12 +3,17 @@ extern crate rex;
 use rex::helper::args;
 use rex::com;
 
-fn main() {
+#[tokio::main]
+async fn main() {
 
     let a = args::parse_args();
 
     match a.command.as_str() {
         "help" => { com::help::show_help() }
+
+        "fswatch" => { com::fswatch::main(a).await }
+        
+        
         _ => { com::help::unknown_command() }
     }
 }

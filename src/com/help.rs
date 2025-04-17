@@ -17,9 +17,14 @@ Never mind, just use it for whatever you want with it. (except for illegal stuff
        (or do, i don't care)
        (but don't tell me about it, please)
 
-Commands: 
+General Commands: 
     help       Show this help message
 
+File System Commands:
+    fswatch    Watch a folder for changes in real-time
+
+
+type 'rex <command> --help' for more information about a command
 "#;
 
     println!("{}", help_text);
