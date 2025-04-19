@@ -47,6 +47,13 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+
+      - name: Install dependencies
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y pkg-config libssl-dev
+
       - name: Build binary
         uses: houseabsolute/actions-rust-cross@v1
         with:
@@ -54,6 +61,7 @@ jobs:
           target: ${{ matrix.platform.target }}
           args: "--locked --release"
           strip: true
+
       - name: Publish artifacts and release
         uses: houseabsolute/actions-rust-release@v0
         with:
