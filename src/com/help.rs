@@ -46,7 +46,7 @@ pub fn unknown_command() {
 pub fn show_version() {
     let help_text = r#"
 
-           __    v0.0.1
+           __    v0.0.2
           / _) /
    .-^^^-/ /
   /       /
