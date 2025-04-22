@@ -10,6 +10,8 @@ async fn main() {
 
     match a.command.as_str() {
         "help" => { com::help::show_help() }
+        "version" => { com::help::show_version() }
+        "update" => { com::help::update() }
 
         "fswatch" => { com::fswatch::main(a).await }
 

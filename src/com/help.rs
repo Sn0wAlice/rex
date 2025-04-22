@@ -20,6 +20,8 @@ Never mind, just use it for whatever you want with it.
 
 General Commands: 
     help       Show this help message
+    version    Show the version of rex
+    update     Update rex to the latest version
 
 Web shit
     webcrawl   Crawl a website for links and resources
@@ -39,4 +41,41 @@ type 'rex <command> --help' for more information about a command
 pub fn unknown_command() {
     println!("> Unknown command");
     println!("> Type 'rex help' for a list of commands");
+}
+
+pub fn show_version() {
+    let help_text = r#"
+
+           __    v0.0.1
+          / _) /
+   .-^^^-/ /
+  /       /
+<_.|_|-|_|
+"#;
+
+    println!("{}", help_text);
+}
+
+pub fn update() {
+    // check if we are on macos or on linux
+    // and check run utils/install_macos.sh or utils/install_linux.sh
+
+    if cfg!(target_os = "macos") {
+        println!("> Updating rex on macos");
+        println!("> Please wait...");
+        std::process::Command::new("bash")
+            .arg("utils/install_macos.sh")
+            .status()
+            .expect("Failed to update rex");
+    } else if cfg!(target_os = "linux") {
+        println!("> Updating rex on linux");
+        println!("> Please wait...");
+        std::process::Command::new("bash")
+            .arg("utils/install_linux.sh")
+            .status()
+            .expect("Failed to update rex");
+    } else {
+        println!("> Unsupported OS for update");
+    }
+    
 }
