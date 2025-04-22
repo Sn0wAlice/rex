@@ -14,7 +14,7 @@ For **macOS** you can install Rex using this command:
 
 For **Linux** you can install Rex using this command:
 ```bash
-/bin/bash -c "$(curl -fsSL https://github.com/Sn0wAlice/rex/blob/main/utils/install_linux.sh)"
+bash -c "$(curl -fsSL https://raw.githubusercontent.com/Sn0wAlice/rex/main/utils/install_linux.sh)"
 ```
 
 ---
