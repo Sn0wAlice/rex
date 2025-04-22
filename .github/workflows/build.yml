@@ -60,15 +60,6 @@ jobs:
           brew install openssl@3
           echo "OPENSSL_DIR=$(brew --prefix openssl@3)" >> $GITHUB_ENV
 
-      - name: Install OpenSSL (Windows)
-        if: runner.os == 'Windows'
-        shell: powershell
-        run: |
-          Invoke-WebRequest -Uri https://slproweb.com/download/Win64OpenSSL-3_2_1.exe -OutFile openssl-installer.exe
-          Start-Process -Wait -FilePath .\openssl-installer.exe -ArgumentList "/silent", "/verysilent", "/sp-", "/norestart", "/dir=C:\OpenSSL-Win64"
-          echo "OPENSSL_NO_VENDOR=1" >> $env:GITHUB_ENV
-          echo "OPENSSL_DIR=C:\OpenSSL-Win64" >> $env:GITHUB_ENV
-
       - name: Build binary
         uses: houseabsolute/actions-rust-cross@v1
         with:
