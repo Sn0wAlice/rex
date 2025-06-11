@@ -12,6 +12,9 @@ help                        - show this help message
 ssl <command> <domain>      - perform SSL command on a domain
     dump                    - dump SSL certificates
 
+pdf <command> <file_path>   - perform PDF command on a file
+    extract                 - extract metadata and images from a PDF file
+
     ";
 
     println!("{}", str);
