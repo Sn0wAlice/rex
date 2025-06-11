@@ -5,6 +5,7 @@ Rex is a multi tool for SOC analyst
 # Features
 - [x] SSL Dump
 - [x] PDF Extractor
+- [x] Network rt logs
 
 
 # Installation

@@ -1,6 +1,6 @@
 extern crate rex;
 
-use crate::rex::com::{ssl, help, pdf};
+use crate::rex::com::{ssl, help, pdf, net};
 
 #[tokio::main]
 async fn main() {
@@ -18,6 +18,9 @@ async fn main() {
         }
         "pdf" => {
             pdf::main(args).await;
+        }
+        "net" => {
+            net::main(args).await;
         }
 
 
