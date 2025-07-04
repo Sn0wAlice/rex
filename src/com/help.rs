@@ -29,6 +29,10 @@ reg <command> <args>        - perform registry command
         deepscan            - perform a deep scan of systemd services
                --save       - save the scan results to a file
 
+domain <command> <args>     - perform domain command
+    mail <subcommand> [args]- perform mail command on a domain
+        scan <domain>       - scan for the mail configuration of a domain (DMARC, SPF, DKIM, etc.)
+
     ";
 
     println!("{}", str);

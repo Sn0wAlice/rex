@@ -3,3 +3,4 @@ pub mod help;
 pub mod pdf;
 pub mod net;
 pub mod reg;
+pub mod domain;
