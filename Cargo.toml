@@ -7,6 +7,8 @@ edition = "2021"
 reqwest = { version = "0.12", features = ["json", "gzip", "brotli", "deflate", "cookies"] }
 tokio = { version = "1", features = ["full"] }
 serde = { version = "1", features = ["derive"] }
+trust-dns-client = "0.23"
+trust-dns-proto = "0.23"
 trust-dns-resolver = "0.23"
 scraper = "0.18"
 url = "2.4"

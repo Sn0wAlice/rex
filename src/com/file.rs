@@ -4,16 +4,39 @@ use std::io::Write;
 
 pub async fn main(args: Vec<String>) {
     if args.len() < 4 {
-        eprintln!("Usage: {} pdf <command> <args>", args[0]);
+        eprintln!("Usage: {} file <command> <args>", args[0]);
         std::process::exit(1);
     }
 
     match args[2].as_str() {
-        "extract" => {
-            extract_pdf(args[3].clone());
+        "pdf" => {
+            pdf(args[3..].to_vec());
         }
         _ => {
-            eprintln!("Unknown PDF command: {}", args[1]);
+            eprintln!("Unknown file command: {}", args[1]);
+        }
+    }
+}
+
+
+fn pdf(args: Vec<String>) {
+    if args.len() < 1 {
+        eprintln!("Usage: {} file pdf <command> <args>", args[0]);
+        std::process::exit(1);
+    }
+
+    println!("{:?}", args);
+
+    match args[0].as_str() {
+        "extract" => {
+            if args.len() < 2 {
+                eprintln!("Usage: {} file pdf extract <pdf_path>", args[0]);
+                std::process::exit(1);
+            }
+            extract_pdf(args[1].clone());
+        }
+        _ => {
+            eprintln!("Unknown PDF command: {}", args[2]);
         }
     }
 }
@@ -43,7 +66,7 @@ fn extract_metadata(doc: &Document, output_dir: &str) {
 }
 
 fn extract_pdf(path: String) {
-    let output_dir = "output";
+    let output_dir = "output/file/pdf/extracted";
     create_dir_all(format!("{}/images", output_dir)).unwrap();
     create_dir_all(format!("{}/js", output_dir)).unwrap();
     create_dir_all(format!("{}/raw_objects", output_dir)).unwrap();

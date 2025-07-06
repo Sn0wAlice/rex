@@ -12,8 +12,9 @@ help                           - show this help message
 ssl <command> <domain>         - perform SSL command on a domain
     dump                       - dump SSL certificates
 
-pdf <command> <file_path>      - perform PDF command on a file
-    extract                    - extract metadata and images from a PDF file
+file <command> <file_path>     - perform file command on a file
+    pdf <command> <file_path>  - perform PDF command on a file
+        extract                - extract metadata and images from a PDF file
 
 net <command>                  - perform network command on a domain
     log                        - show network logs (requires root privileges)
