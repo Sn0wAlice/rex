@@ -4,10 +4,12 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-reqwest = { version = "0.12", features = ["json"] }
+reqwest = { version = "0.12", features = ["json", "gzip", "brotli", "deflate", "cookies"] }
 tokio = { version = "1", features = ["full"] }
 serde = { version = "1", features = ["derive"] }
 trust-dns-resolver = "0.23"
+scraper = "0.18"
+url = "2.4"
 serde_json = "1"
 indicatif = "0.17.11"
 lopdf = "0.36.0"

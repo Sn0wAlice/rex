@@ -8,14 +8,15 @@
 
 ## 🚀 Key Features
 
-✅ **SSL Dump**  
-✅ **PDF File Extractor**  
-✅ **Real-time Network Log Monitor**  
-✅ **Systemd Log Extractor**  
-✅ **Systemd Issue Scanner**  
-✅ **Systemd Deep Scanner**  
-✅ **SSH Login Failure Detection**  
-✅ **DKIM / SPF / DMARC Email Validator**
+- **SSL Dump** 
+- **PDF File Extractor**  
+- **Real-time Network Log Monitor**  
+- **Systemd Log Extractor**  
+- **Systemd Issue Scanner**  
+- **Systemd Deep Scanner**  
+- **SSH Login Failure Detection**  
+- **DKIM / SPF / DMARC Email Validator**
+- **Typosquating generator**
 
 ---
 
