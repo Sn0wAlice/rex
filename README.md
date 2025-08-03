@@ -17,6 +17,8 @@
 - **SSH Login Failure Detection**  
 - **DKIM / SPF / DMARC Email Validator**
 - **Typosquating generator**
+- **diskinfo** — Disk usage and health checker
+- **carve** — File carving tool
 
 ---
 

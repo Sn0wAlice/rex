@@ -1,6 +1,6 @@
 extern crate rex;
 
-use crate::rex::com::{ssl, help, file, net, reg, domain, web, diskinfo};
+use crate::rex::com::{ssl, help, file, net, reg, domain, web, diskinfo, carve};
 
 #[tokio::main]
 async fn main() {
@@ -33,6 +33,9 @@ async fn main() {
         }
         "diskinfo" => {
             diskinfo::main(args).await;
+        }
+        "carve" => {
+            carve::main(args).await;
         }
 
         "help" => {

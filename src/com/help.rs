@@ -20,6 +20,8 @@ net <command>                  - perform network command on a domain
     log                        - show network logs (requires root privileges)
 
 diskinfo                       - show disk information
+carve <image>                  - recover deleted or hidden files from a disk image
+      [--all] [--only-deleted]
 
 reg <command> <args>           - perform registry command
     systemd <service_name>     - manage systemd services
