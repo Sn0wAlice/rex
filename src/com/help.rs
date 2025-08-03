@@ -19,6 +19,8 @@ file <command> <file_path>     - perform file command on a file
 net <command>                  - perform network command on a domain
     log                        - show network logs (requires root privileges)
 
+diskinfo                       - show disk information
+
 reg <command> <args>           - perform registry command
     systemd <service_name>     - manage systemd services
         extract                - extract logs from systemd journal
