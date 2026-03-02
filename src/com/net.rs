@@ -1,28 +1,17 @@
+use anyhow::{Result, Context};
 use pcap::{Capture, Device};
 
-pub async fn main(args: Vec<String>) {
-    if args.len() < 3 {
-        eprintln!("Usage: {} net <command>", args[0]);
-        std::process::exit(1);
-    }
+pub fn logs_network() -> Result<()> {
+    let device = Device::lookup()
+        .context("Failed to look up network device")?
+        .context("No network device found")?;
+    let device_name = device.name;
 
-    match args[2].as_str() {
-        "log" => {
-            logs_network();
-        }
-        _ => {
-            eprintln!("Unknown NET command: {}", args[1]);
-        }
-    }
-}
-
-fn logs_network() {
-    let device_name = Device::lookup().expect("No device found").unwrap().name;
     let mut cap = Capture::from_device(device_name.as_str())
-        .expect("Failed to create capture from device")
+        .context("Failed to create capture from device")?
         .promisc(true)
         .open()
-        .expect("Failed to open capture");
+        .context("Failed to open capture")?;
 
     println!("Listening for packets...");
 
@@ -30,18 +19,16 @@ fn logs_network() {
         let data = packet.data;
 
         if data.len() < 14 {
-            continue; // Pas un paquet Ethernet complet
+            continue;
         }
 
         let ethertype = u16::from_be_bytes([data[12], data[13]]);
 
         match ethertype {
             0x0806 => {
-                // ARP
                 println!("ARP packet detected");
             }
             0x0800 => {
-                // IPv4
                 let ip_header_start = 14;
                 if data.len() < ip_header_start + 20 {
                     continue;
@@ -68,11 +55,9 @@ fn logs_network() {
 
                 match protocol {
                     1 => {
-                        // ICMP
                         println!("ICMP packet from {} to {}", src_ip, dst_ip);
                     }
                     6 => {
-                        // TCP
                         if data.len() >= transport_start + 4 {
                             let src_port = u16::from_be_bytes([
                                 data[transport_start],
@@ -89,7 +74,6 @@ fn logs_network() {
                         }
                     }
                     17 => {
-                        // UDP
                         if data.len() >= transport_start + 4 {
                             let src_port = u16::from_be_bytes([
                                 data[transport_start],
@@ -111,7 +95,6 @@ fn logs_network() {
                 }
             }
             0x86DD => {
-                // IPv6
                 println!("IPv6 packet (not parsed in detail)");
             }
             _ => {
@@ -119,4 +102,6 @@ fn logs_network() {
             }
         }
     }
+
+    Ok(())
 }

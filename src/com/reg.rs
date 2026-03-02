@@ -1,66 +1,10 @@
+use anyhow::{Result, Context};
 use std::process::{Command, Stdio};
 use std::collections::{HashMap, HashSet};
-use std::fmt::format;
 use regex::Regex;
 use std::io::{BufRead, BufReader};
 use serde::Deserialize;
 use std::fs;
-
-pub async fn main(args: Vec<String>) {
-
-    if args.len() < 3 {
-        eprintln!("Usage: reg <command> <args>");
-        return;
-    }
-
-    match args[2].as_str() {
-        "systemd" => {
-            if args.len() < 4 {
-                eprintln!("Usage: reg systemd <service_name>");
-                return;
-            }
-            match args[3].as_str() {
-                "extract" => {
-                    let n = if args.contains(&"-n".to_string()) {
-                        args.iter().position(|x| x == "-n").and_then(|i| args.get(i + 1)).and_then(|s| s.parse::<usize>().ok()).unwrap_or(100)
-                    } else {
-                        100
-                    };
-                    if args.contains(&"-group".to_string()) {
-                        sysd_extract_group(n);
-                    } else {
-                        sysd_extract(n);
-                    }
-                }
-                "scan" => {
-                    let n = if args.contains(&"-n".to_string()) {
-                        args.iter().position(|x| x == "-n").and_then(|i| args.get(i + 1)).and_then(|s| s.parse::<usize>().ok()).unwrap_or(100)
-                    } else {
-                        100
-                    };
-                    sysd_scan(n);
-                }
-                "deepscan" => {
-                    sysd_deepscan(args);
-                }
-                "sshfail" => {
-                    let failed_attempts = extract_failed_ssh_attempts();
-                    println!("| IP Address | Failed Attempts |");
-                    println!("|------------|-----------------|");
-                    for (ip, count) in failed_attempts {
-                        println!("| {} | {} |", ip, count);
-                    }
-                }
-                _ => {
-                    eprintln!("Unknown reg systemd command: {}", args[3]);
-                }
-            }
-        }
-        _ => {
-            eprintln!("Unknown reg command: {}", args[2]);
-        }
-    }
-}
 
 //
 //   _____         _               _
@@ -82,19 +26,25 @@ struct JournalEntry {
     #[serde(rename = "MESSAGE")]
     message: Option<String>,
     #[serde(rename = "_SOURCE_REALTIME_TIMESTAMP")]
+    #[allow(dead_code)]
     timestamp: Option<String>,
     #[serde(rename = "_SYSTEMD_UNIT")]
     systemd_unit: Option<String>,
 }
 
-fn sysd_extract(number: usize) {
-    let mut child = Command::new("journalctl")
-        .args(["-o", "json", "-n", &number.to_string()]) // sortie JSON, derniers 100 logs
+fn spawn_journalctl(args: &[&str]) -> Result<std::process::Child> {
+    Command::new("journalctl")
+        .args(args)
         .stdout(Stdio::piped())
         .spawn()
-        .expect("Failed to start journalctl process");
+        .context("Failed to start journalctl -- is it installed?")
+}
 
-    let stdout = child.stdout.take().expect("No stdout available");
+pub fn sysd_extract(number: usize) -> Result<()> {
+    let n_str = number.to_string();
+    let mut child = spawn_journalctl(&["-o", "json", "-n", &n_str])?;
+    let stdout = child.stdout.take()
+        .context("Failed to capture journalctl stdout")?;
     let reader = BufReader::new(stdout);
 
     for line in reader.lines().flatten() {
@@ -113,19 +63,16 @@ fn sysd_extract(number: usize) {
             }
         }
     }
+    Ok(())
 }
 
-fn sysd_extract_group(number: usize) {
-    let mut child = Command::new("journalctl")
-        .args(["-o", "json", "-n", &number.to_string()]) // JSON output, last 'number' logs
-        .stdout(Stdio::piped())
-        .spawn()
-        .expect("Failed to run journalctl");
-
-    let stdout = child.stdout.take().expect("No stdout from journalctl");
+pub fn sysd_extract_group(number: usize) -> Result<()> {
+    let n_str = number.to_string();
+    let mut child = spawn_journalctl(&["-o", "json", "-n", &n_str])?;
+    let stdout = child.stdout.take()
+        .context("Failed to capture journalctl stdout")?;
     let reader = BufReader::new(stdout);
 
-    // A map from syslog identifier to a list of messages
     let mut grouped_logs: HashMap<String, Vec<String>> = HashMap::new();
 
     for line in reader.lines().flatten() {
@@ -148,14 +95,14 @@ fn sysd_extract_group(number: usize) {
         }
     }
 
-    // Print grouped logs
     for (identifier, messages) in grouped_logs {
         println!("=== {} ===", identifier);
         for msg in messages {
             println!("{}", msg);
         }
-        println!(); // Spacer
+        println!();
     }
+    Ok(())
 }
 
 #[derive(Debug)]
@@ -183,14 +130,11 @@ fn classify_event(entry: &JournalEntry) -> EventType {
     }
 }
 
-fn sysd_scan(number: usize) {
-    let mut child = Command::new("journalctl")
-        .args(["-o", "json", "-n", &number.to_string()]) // JSON output, last 'number' logs
-        .stdout(Stdio::piped())
-        .spawn()
-        .expect("Failed to run journalctl");
-
-    let stdout = child.stdout.take().expect("No stdout from journalctl");
+pub fn sysd_scan(number: usize) -> Result<()> {
+    let n_str = number.to_string();
+    let mut child = spawn_journalctl(&["-o", "json", "-n", &n_str])?;
+    let stdout = child.stdout.take()
+        .context("Failed to capture journalctl stdout")?;
     let reader = BufReader::new(stdout);
 
     let mut events_by_type: HashMap<String, Vec<String>> = HashMap::new();
@@ -218,7 +162,6 @@ fn sysd_scan(number: usize) {
         }
     }
 
-    // Print grouped by event type
     for (etype, logs) in events_by_type {
         println!("=== {} ===", etype);
         for log in logs {
@@ -226,19 +169,27 @@ fn sysd_scan(number: usize) {
         }
         println!();
     }
+    Ok(())
 }
 
-fn extract_failed_ssh_attempts() -> HashMap<String, u32> {
-    let mut child = Command::new("journalctl")
-        .args(["-o", "json", "-u", "ssh", "-n", "1000"]) // limit to sshd logs
-        .stdout(Stdio::piped())
-        .spawn()
-        .expect("Failed to run journalctl");
+pub fn sshfail() -> Result<()> {
+    let failed_attempts = extract_failed_ssh_attempts()?;
+    println!("| IP Address | Failed Attempts |");
+    println!("|------------|-----------------|");
+    for (ip, count) in failed_attempts {
+        println!("| {} | {} |", ip, count);
+    }
+    Ok(())
+}
 
-    let stdout = child.stdout.take().expect("No stdout from journalctl");
+fn extract_failed_ssh_attempts() -> Result<HashMap<String, u32>> {
+    let mut child = spawn_journalctl(&["-o", "json", "-u", "ssh", "-n", "1000"])?;
+    let stdout = child.stdout.take()
+        .context("Failed to capture journalctl stdout")?;
     let reader = BufReader::new(stdout);
 
-    let ip_regex = Regex::new(r"from ([0-9]{1,3}(\.[0-9]{1,3}){3})").unwrap();
+    let ip_regex = Regex::new(r"from ([0-9]{1,3}(\.[0-9]{1,3}){3})")
+        .expect("static regex pattern");
     let mut ip_counter: HashMap<String, u32> = HashMap::new();
 
     for line in reader.lines().flatten() {
@@ -256,12 +207,10 @@ fn extract_failed_ssh_attempts() -> HashMap<String, u32> {
             }
         }
     }
-    println!("\n\n");
+    println!("\n");
 
-    ip_counter
+    Ok(ip_counter)
 }
-
-
 
 #[derive(Debug)]
 enum SuspiciousEvent {
@@ -272,14 +221,10 @@ enum SuspiciousEvent {
     UnknownService { unit: String },
 }
 
-fn detect_suspicious_events() -> Vec<SuspiciousEvent> {
-    let mut child = Command::new("journalctl")
-        .args(["-o", "json", "-n", "10000"]) // analyze last 10k logs
-        .stdout(Stdio::piped())
-        .spawn()
-        .expect("Failed to run journalctl");
-
-    let stdout = child.stdout.take().expect("No stdout from journalctl");
+fn detect_suspicious_events() -> Result<Vec<SuspiciousEvent>> {
+    let mut child = spawn_journalctl(&["-o", "json", "-n", "10000"])?;
+    let stdout = child.stdout.take()
+        .context("Failed to capture journalctl stdout")?;
     let reader = BufReader::new(stdout);
 
     let mut bruteforce_ips: HashMap<String, u32> = HashMap::new();
@@ -293,7 +238,8 @@ fn detect_suspicious_events() -> Vec<SuspiciousEvent> {
         .map(|s| s.to_string())
         .collect();
 
-    let ip_regex = Regex::new(r"from ([0-9]{1,3}(\.[0-9]{1,3}){3})").unwrap();
+    let ip_regex = Regex::new(r"from ([0-9]{1,3}(\.[0-9]{1,3}){3})")
+        .expect("static regex pattern");
 
     for line in reader.lines().flatten() {
         if let Ok(entry) = serde_json::from_str::<JournalEntry>(&line) {
@@ -339,7 +285,7 @@ fn detect_suspicious_events() -> Vec<SuspiciousEvent> {
 
             // 5. Unknown service
             if !unit.is_empty() && !known_services.contains(&unit) {
-                known_services.insert(unit.clone()); // remember it now
+                known_services.insert(unit.clone());
                 suspicious_events.push(SuspiciousEvent::UnknownService {
                     unit: unit.clone(),
                 });
@@ -347,59 +293,57 @@ fn detect_suspicious_events() -> Vec<SuspiciousEvent> {
         }
     }
 
-    // Add bruteforce results
     for (ip, count) in bruteforce_ips {
         if count > 5 {
             suspicious_events.push(SuspiciousEvent::BruteforceLogin { ip, attempts: count });
         }
     }
 
-    // Add frequent restart results
     for (unit, count) in restart_counts {
         if count > 5 {
             suspicious_events.push(SuspiciousEvent::FrequentRestart { unit, count });
         }
     }
 
-    suspicious_events
+    Ok(suspicious_events)
 }
 
-fn sysd_deepscan(args:Vec<String>) {
-    let events = detect_suspicious_events();
+pub fn sysd_deepscan(save: bool) -> Result<()> {
+    let events = detect_suspicious_events()?;
 
     println!("=== Suspicious System Events Detected ===");
-    let mut str = String::new();
+    let mut output = String::new();
     for event in events {
         match event {
             SuspiciousEvent::SuspiciousUID0 { uid, msg } => {
                 println!("[UID 0 Activity] {} ran: {}", uid, msg);
-                str.push_str(format!("[UID 0 Activity] {} ran: {}\n", uid, msg).as_str());
+                output.push_str(&format!("[UID 0 Activity] {} ran: {}\n", uid, msg));
             }
             SuspiciousEvent::BruteforceLogin { ip, attempts } => {
                 println!("[Bruteforce] {} => {} attempts", ip, attempts);
-                str.push_str(format!("[Bruteforce] {} => {} attempts\n", ip, attempts).as_str());
+                output.push_str(&format!("[Bruteforce] {} => {} attempts\n", ip, attempts));
             }
             SuspiciousEvent::FrequentRestart { unit, count } => {
                 println!("[Frequent Restart] {} restarted {} times", unit, count);
-                str.push_str(format!("[Frequent Restart] {} restarted {} times\n", unit, count).as_str());
+                output.push_str(&format!("[Frequent Restart] {} restarted {} times\n", unit, count));
             }
             SuspiciousEvent::LogTampering { msg } => {
                 println!("[Log Tampering] {}", msg);
-                str.push_str(format!("[Log Tampering] {}\n", msg).as_str());
+                output.push_str(&format!("[Log Tampering] {}\n", msg));
             }
             SuspiciousEvent::UnknownService { unit } => {
                 println!("[Unknown Service] {}", unit);
-                str.push_str(format!("[Unknown Service] {}\n", unit).as_str());
+                output.push_str(&format!("[Unknown Service] {}\n", unit));
             }
         }
     }
-    if str.is_empty() {
+    if output.is_empty() {
         println!("No suspicious events detected.");
-    } else {
-        if args.contains(&String::from("--save")) {
-            let path = format!("suspicious_events_{}.log", chrono::Local::now().format("%Y%m%d_%H%M%S"));
-            fs::write(path.to_string(), str).expect("Unable to write file");
-            println!("Suspicious events saved to {}", path);
-        }
+    } else if save {
+        let path = format!("suspicious_events_{}.log", chrono::Local::now().format("%Y%m%d_%H%M%S"));
+        fs::write(&path, output)
+            .with_context(|| format!("Unable to write file {}", path))?;
+        println!("Suspicious events saved to {}", path);
     }
+    Ok(())
 }

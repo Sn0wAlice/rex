@@ -4,6 +4,8 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
+clap = { version = "4", features = ["derive"] }
+anyhow = "1"
 reqwest = { version = "0.12", features = ["json", "gzip", "brotli", "deflate", "cookies"] }
 tokio = { version = "1", features = ["full"] }
 serde = { version = "1", features = ["derive"] }

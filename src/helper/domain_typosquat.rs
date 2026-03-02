@@ -1,4 +1,4 @@
-use std::env;
+use anyhow::{Result, Context};
 use std::fs::{self, File};
 use std::io::{BufWriter, Write};
 
@@ -10,7 +10,6 @@ fn split_domain(domain: &str) -> (&str, &str) {
     }
 }
 
-// --- Méthodes de typosquatting ---
 fn omission(s: &str) -> Vec<String> {
     (0..s.len()).map(|i| {
         let mut c = s.to_string();
@@ -120,10 +119,9 @@ fn bitsquatting(s: &str) -> Vec<String> {
 }
 
 fn unicode_abuse(s: &str) -> Vec<String> {
-    vec![s.replace("o", "о")] // Cyrillic 'о'
+    vec![s.replace("o", "\u{043E}")] // Cyrillic 'о'
 }
 
-// --- Génération contrôlée par les méthodes ---
 fn generate_with_methods(domain: &str, methods: &[&str]) -> Vec<String> {
     let (base, tld) = split_domain(domain);
     let base_only = base.replace('.', "");
@@ -145,7 +143,7 @@ fn generate_with_methods(domain: &str, methods: &[&str]) -> Vec<String> {
             "bitsquatting" => bitsquatting(&base_only),
             "unicode" => unicode_abuse(&base_only),
             _ => {
-                eprintln!("⚠️ Unknown method: {}", method);
+                eprintln!("Unknown method: {}", method);
                 vec![]
             }
         };
@@ -163,59 +161,43 @@ fn generate_with_methods(domain: &str, methods: &[&str]) -> Vec<String> {
     unique
 }
 
-fn write_to_file(path: &str, typos: &[String]) -> std::io::Result<()> {
+fn write_to_file(path: &str, typos: &[String]) -> Result<()> {
     if let Some(parent) = std::path::Path::new(path).parent() {
-        fs::create_dir_all(parent)?;
+        fs::create_dir_all(parent)
+            .with_context(|| format!("Failed to create directory {}", parent.display()))?;
     }
-    let file = File::create(path)?;
+    let file = File::create(path)
+        .with_context(|| format!("Failed to create {}", path))?;
     let mut writer = BufWriter::new(file);
     for typo in typos {
         writeln!(writer, "{}", typo)?;
     }
-    println!("✅ Output file : {}", path);
+    println!("Output file: {}", path);
     Ok(())
 }
 
-pub fn generate_list(args: Vec<String>) {
-    let mut domain = "";
-    let mut methods = vec!["omission", "permutation", "substitution", "repetition", "missingdot", "homoglyph", "insertion", "tldswap", "hyphenation", "subdomain", "combo", "bitsquatting", "unicode"];
-    let mut output_file = None;
+pub fn generate_list(domain: &str, output: Option<&str>, method_arg: Option<&str>) -> Result<()> {
+    let all_methods = vec![
+        "omission", "permutation", "substitution", "repetition",
+        "missingdot", "homoglyph", "insertion", "tldswap",
+        "hyphenation", "subdomain", "combo", "bitsquatting", "unicode",
+    ];
 
-    let mut i = 0;
-    while i < args.len() {
-        match args[i].as_str() {
-            "--method" => {
-                i += 1;
-                if i < args.len() {
-                    methods = args[i].split(',').collect();
-                }
-            }
-            "--output" => {
-                i += 1;
-                if i < args.len() {
-                    output_file = Some(args[i].clone());
-                }
-            }
-            other if !other.starts_with("--") && domain.is_empty() => {
-                domain = other;
-            }
-            _ => {}
-        }
-        i += 1;
-    }
+    let methods: Vec<&str> = match method_arg {
+        Some(m) => m.split(',').collect(),
+        None => all_methods,
+    };
 
-    if domain.is_empty() {
-        eprintln!("❌ No domain provided. Usage: --method <methods> --output <file> <domain>");
-        std::process::exit(1);
-    }
-
-    println!("🔍 Generating typos for domain: {}", domain);
-    println!("🛠️ Using methods: {}", methods.join(", "));
+    println!("Generating typos for domain: {}", domain);
+    println!("Using methods: {}", methods.join(", "));
 
     let typos = generate_with_methods(domain, &methods);
-    let output_path = output_file.unwrap_or_else(|| format!("./output/typo/{}.txt", domain));
 
-    if let Err(e) = write_to_file(&output_path, &typos) {
-        eprintln!("Erreur d'écriture : {}", e);
-    }
+    let default_output = format!("./output/typo/{}.txt", domain);
+    let output_path = output.unwrap_or(&default_output);
+
+    write_to_file(output_path, &typos)
+        .with_context(|| format!("Failed to write output to {}", output_path))?;
+
+    Ok(())
 }

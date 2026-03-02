@@ -1,28 +1,19 @@
+use anyhow::{Result, Context};
+#[cfg(target_os = "linux")]
 use std::collections::HashMap;
+#[cfg(target_os = "linux")]
 use std::fs;
-use std::io::{self, Read};
-use std::path::{Path, PathBuf};
+#[cfg(target_os = "linux")]
+use std::path::Path;
 
 #[cfg(target_os = "macos")]
 use std::process::Command;
 
-pub async fn main(args: Vec<String>) {
-    if args.len() < 3 {
-        if let Err(e) = get_block_devices() {
-            eprintln!("Error: {}", e);
-        }
-        return;
-    }
-
-    match args[2].as_str() {
-        _ => {
-            eprintln!("Unknown DISKINFO command: {}", args[2]);
-            eprintln!("Use 'help' to see available commands.");
-            std::process::exit(1);
-        }
-    }
+pub fn run() -> Result<()> {
+    get_block_devices()
 }
 
+#[cfg(target_os = "linux")]
 fn format_size(bytes: u64) -> String {
     const UNITS: &[&str] = &["B", "KB", "MB", "GB", "TB"];
     let mut size = bytes as f64;
@@ -34,14 +25,16 @@ fn format_size(bytes: u64) -> String {
     format!("{:.2} {}", size, UNITS[unit])
 }
 
+#[cfg(target_os = "linux")]
 fn read_to_string<P: AsRef<Path>>(path: P) -> Option<String> {
     fs::read_to_string(path).ok().map(|s| s.trim().to_string())
 }
 
-fn get_block_devices() -> io::Result<()> {
+fn get_block_devices() -> Result<()> {
     #[cfg(target_os = "linux")]
     {
-        let mounts = fs::read_to_string("/proc/mounts")?;
+        let mounts = fs::read_to_string("/proc/mounts")
+            .context("Failed to read /proc/mounts")?;
         let mount_map: HashMap<_, _> = mounts
             .lines()
             .filter_map(|line| {
@@ -56,12 +49,12 @@ fn get_block_devices() -> io::Result<()> {
 
         let uuid_map = build_uuid_map("/dev/disk/by-uuid");
 
-        for entry in fs::read_dir("/sys/block")? {
+        for entry in fs::read_dir("/sys/block")
+            .context("Failed to read /sys/block")? {
             let entry = entry?;
             let disk_name = entry.file_name().into_string().unwrap_or_default();
             let disk_path = format!("/dev/{}", disk_name);
 
-            // Ignore loopback or ram devices
             if disk_name.starts_with("loop") || disk_name.starts_with("ram") {
                 continue;
             }
@@ -104,9 +97,9 @@ fn get_block_devices() -> io::Result<()> {
     #[cfg(target_os = "macos")]
     {
         let output = Command::new("diskutil")
-            .args(&["list"])
+            .args(["list"])
             .output()
-            .expect("failed to run diskutil");
+            .context("Failed to run diskutil")?;
 
         let stdout = String::from_utf8_lossy(&output.stdout);
         println!("{}", stdout);
@@ -115,6 +108,7 @@ fn get_block_devices() -> io::Result<()> {
     Ok(())
 }
 
+#[cfg(target_os = "linux")]
 fn build_uuid_map<P: AsRef<Path>>(uuid_dir: P) -> HashMap<String, String> {
     let mut map = HashMap::new();
     if let Ok(entries) = fs::read_dir(uuid_dir) {

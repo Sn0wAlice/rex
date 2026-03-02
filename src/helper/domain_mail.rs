@@ -1,11 +1,12 @@
+use anyhow::{Result, Context};
 use regex::Regex;
 use trust_dns_resolver::TokioAsyncResolver;
 
-pub async fn mail_scan(domain: &str) {
-    println!("📬 Scanning mail configuration for domain: {}\n", domain);
+pub async fn mail_scan(domain: &str) -> Result<()> {
+    println!("Scanning mail configuration for domain: {}\n", domain);
 
     let resolver = TokioAsyncResolver::tokio_from_system_conf()
-        .expect("Failed to create DNS resolver");
+        .context("Failed to create DNS resolver")?;
 
     let mut issues = vec![];
 
@@ -18,7 +19,7 @@ pub async fn mail_scan(domain: &str) {
                 .find(|txt| txt.starts_with("v=spf1"))
         });
 
-    println!("🔹 SPF:");
+    println!("SPF:");
     match spf_record {
         Some(spf) => {
             println!("SPF record found:\n   {}", spf);
@@ -26,7 +27,6 @@ pub async fn mail_scan(domain: &str) {
                 println!("Warning: SPF record does not end with ~all or -all (soft/hard fail).");
                 issues.push("SPF policy may not be strict enough.");
             }
-            // broque the SPF record and list all the part of it, like an include, ip4, ip6, etc.
             let parts: Vec<&str> = spf.split_whitespace().collect();
             println!("\nSPF record parts:");
             for part in parts {
@@ -38,14 +38,12 @@ pub async fn mail_scan(domain: &str) {
                     println!("  - IPv6: {}", &part[4..]);
                 } else if part.starts_with("a") || part.starts_with("mx") {
                     println!("  - Mechanism: {}", part);
+                } else if part.starts_with("v=spf1") {
+                    continue;
+                } else if part.ends_with("all") {
+                    println!("  - Policy: {}", part);
                 } else {
-                    if part.starts_with("v=spf1") {
-                        continue; // Skip the version part
-                    } else if part.ends_with("all") {
-                        println!("  - Policy: {}", part);
-                    } else {
-                        println!("  - Other: {}", part);
-                    }
+                    println!("  - Other: {}", part);
                 }
             }
         }
@@ -57,8 +55,8 @@ pub async fn mail_scan(domain: &str) {
     println!();
 
     // === DKIM ===
-    println!("🔹 DKIM:");
-    let dkim_selector = "default"; // souvent "default", mais peut varier
+    println!("DKIM:");
+    let dkim_selector = "default";
     let dkim_domain = format!("{}._domainkey.{}", dkim_selector, domain);
 
     let dkim_record = resolver.txt_lookup(dkim_domain.clone()).await.ok()
@@ -81,7 +79,7 @@ pub async fn mail_scan(domain: &str) {
     println!();
 
     // === DMARC ===
-    println!("🔹 DMARC:");
+    println!("DMARC:");
     let dmarc_domain = format!("_dmarc.{}", domain);
     let dmarc_record = resolver.txt_lookup(dmarc_domain.clone()).await.ok()
         .and_then(|txts| {
@@ -94,10 +92,11 @@ pub async fn mail_scan(domain: &str) {
     match dmarc_record {
         Some(dmarc) => {
             println!("DMARC record found:\n   {}", dmarc);
-            let re = Regex::new(r"p=([a-zA-Z]+)").unwrap();
+            let re = Regex::new(r"p=([a-zA-Z]+)")
+                .expect("static regex pattern");
             match re.captures(&dmarc) {
                 Some(cap) if &cap[1] == "none" => {
-                    println!("DMARC policy is 'none' — monitoring only, no enforcement.");
+                    println!("DMARC policy is 'none' -- monitoring only, no enforcement.");
                     issues.push("DMARC policy is 'none'; consider 'quarantine' or 'reject'.");
                 }
                 Some(cap) => {
@@ -117,7 +116,7 @@ pub async fn mail_scan(domain: &str) {
     println!();
 
     // === Summary ===
-    println!("📋 Summary Report for '{}':", domain);
+    println!("Summary Report for '{}':", domain);
     if issues.is_empty() {
         println!("All mail DNS records are correctly configured!");
     } else {
@@ -125,4 +124,6 @@ pub async fn mail_scan(domain: &str) {
             println!("{}", issue);
         }
     }
+
+    Ok(())
 }

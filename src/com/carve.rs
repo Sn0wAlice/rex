@@ -1,55 +1,36 @@
+use anyhow::{Result, Context};
 use std::fs::{self, File};
-use std::io::{self, BufReader, Read, Seek, SeekFrom, Write};
+use std::io::{BufReader, Read, Seek, SeekFrom, Write};
+use std::path::Path;
+use std::process::Command;
 
-pub async fn main(args: Vec<String>) {
-    if args.len() < 3 {
-        eprintln!("Usage: rex carve <path_to_device_or_img> [--all]");
-        return;
-    }
+const MOUNT_POINT: &str = "/tmp/rex_mount";
 
-    carve_entry(&args);
-}
-
-pub fn carve_entry(args: &[String]) {
-    let mut target = "";
-    let mut all_flag = false;
-    let mut only_deleted = false;
-
-    for arg in args.iter().skip(2) {
-        if arg == "--all" {
-            all_flag = true;
-        } else if arg == "--only-deleted" {
-            only_deleted = true;
-        } else {
-            target = arg;
-        }
-    }
-
-    if target.is_empty() && !all_flag {
-        eprintln!("Usage: rex carve <path_to_device_or_img> [--all] [--only-deleted]");
-        return;
-    }
-
+pub fn run(target: &str, all: bool, only_deleted: bool, output_base: &str) -> Result<()> {
     println!("[*] Carving from: {}", target);
     let session_id = uuid::Uuid::new_v4();
-    let output_dir = format!("recovered/{}", session_id);
-    if let Err(e) = carve_disk(target, all_flag, only_deleted, &output_dir) {
-        eprintln!("Error during carving: {}", e);
-        return;
-    }
+    let output_dir = format!("{}/{}", output_base, session_id);
+
+    carve_disk(target, all, only_deleted, &output_dir)
+        .context("Error during carving")?;
+
     if !only_deleted {
-        let _ = extract_live_files(target, &output_dir);
+        extract_live_files(target, &output_dir)?;
     }
+    Ok(())
 }
 
-fn carve_disk(path: &str, all: bool, only_deleted: bool, output_dir: &str) -> io::Result<()> {
-    let mut reader = BufReader::new(File::open(path)?);
+fn carve_disk(path: &str, all: bool, only_deleted: bool, output_dir: &str) -> Result<()> {
+    let mut reader = BufReader::new(
+        File::open(path).with_context(|| format!("Failed to open {}", path))?
+    );
     let mut buffer = vec![0u8; 8192];
     let mut chunk = vec![0u8; 1024 * 1024];
     let mut offset = 0u64;
     let mut file_count = 0;
 
-    fs::create_dir_all(output_dir)?;
+    fs::create_dir_all(output_dir)
+        .with_context(|| format!("Failed to create output directory {}", output_dir))?;
     println!("[*] Recovery session started in {}", output_dir);
 
     loop {
@@ -73,12 +54,13 @@ fn carve_disk(path: &str, all: bool, only_deleted: bool, output_dir: &str) -> io
                 println!("Found {} at offset {} -> {}", ext, found_offset, output_path);
 
                 reader.seek(SeekFrom::Start(found_offset))?;
-                let mut out = File::create(&output_path)?;
+                let mut out = File::create(&output_path)
+                    .with_context(|| format!("Failed to create {}", output_path))?;
                 let size = reader.read(&mut chunk)?;
                 out.write_all(&chunk[..size])?;
                 file_count += 1;
 
-                offset = found_offset + 1024 * 1024; // Skip 1MB to avoid overlapping detections
+                offset = found_offset + 1024 * 1024;
                 found = true;
                 break;
             }
@@ -109,22 +91,18 @@ fn detect_signature(buf: &[u8]) -> Option<&'static str> {
     }
 }
 
-fn extract_live_files(image_path: &str, output_dir: &str) -> io::Result<()> {
-    use std::process::Command;
-    use std::path::Path;
+fn extract_live_files(image_path: &str, output_dir: &str) -> Result<()> {
+    fs::create_dir_all(MOUNT_POINT)
+        .with_context(|| format!("Failed to create mount point {}", MOUNT_POINT))?;
 
-    let mount_point = "/tmp/rex_mount";
-    fs::create_dir_all(mount_point)?;
-
-    // Attempt to mount the image using hdiutil (macOS) or mount (Linux)
     #[cfg(target_os = "macos")]
     let status = Command::new("hdiutil")
-        .args(["attach", image_path, "-mountpoint", mount_point, "-nobrowse"])
+        .args(["attach", image_path, "-mountpoint", MOUNT_POINT, "-nobrowse"])
         .status()?;
 
     #[cfg(not(target_os = "macos"))]
     let status = Command::new("mount")
-        .args(["-o", "loop", image_path, mount_point])
+        .args(["-o", "loop", image_path, MOUNT_POINT])
         .status()?;
 
     if !status.success() {
@@ -132,36 +110,37 @@ fn extract_live_files(image_path: &str, output_dir: &str) -> io::Result<()> {
         return Ok(());
     }
 
-    // Copy all files preserving directory structure
-    fn copy_recursively(src: &Path, dst: &Path) -> io::Result<()> {
-        for entry in fs::read_dir(src)? {
-            let entry = entry?;
-            let path = entry.path();
-            let rel_path = path.strip_prefix(src).unwrap();
-            let dest_path = dst.join(rel_path);
-            if path.is_dir() {
-                fs::create_dir_all(&dest_path)?;
-                copy_recursively(&path, &dest_path)?;
-            } else {
-                fs::create_dir_all(dest_path.parent().unwrap())?;
-                fs::copy(&path, &dest_path)?;
-            }
-        }
-        Ok(())
-    }
+    copy_recursively(Path::new(MOUNT_POINT), Path::new(output_dir))?;
 
-    copy_recursively(Path::new(mount_point), Path::new(output_dir))?;
-
-    // Unmount
     #[cfg(target_os = "macos")]
     let _ = Command::new("hdiutil")
-        .args(["detach", mount_point])
+        .args(["detach", MOUNT_POINT])
         .status();
 
     #[cfg(not(target_os = "macos"))]
     let _ = Command::new("umount")
-        .arg(mount_point)
+        .arg(MOUNT_POINT)
         .status();
 
+    Ok(())
+}
+
+fn copy_recursively(src: &Path, dst: &Path) -> Result<()> {
+    for entry in fs::read_dir(src)? {
+        let entry = entry?;
+        let path = entry.path();
+        let rel_path = path.strip_prefix(src)
+            .context("Unexpected path prefix mismatch")?;
+        let dest_path = dst.join(rel_path);
+        if path.is_dir() {
+            fs::create_dir_all(&dest_path)?;
+            copy_recursively(&path, &dest_path)?;
+        } else {
+            if let Some(parent) = dest_path.parent() {
+                fs::create_dir_all(parent)?;
+            }
+            fs::copy(&path, &dest_path)?;
+        }
+    }
     Ok(())
 }

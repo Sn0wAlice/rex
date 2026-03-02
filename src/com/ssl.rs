@@ -1,3 +1,4 @@
+use anyhow::{Result, Context};
 use reqwest::Client;
 use serde::Deserialize;
 use indicatif::{ProgressBar, ProgressStyle};
@@ -17,68 +18,49 @@ pub struct CertificateEntry {
     pub serial_number: String,
 }
 
-pub async fn main(args: Vec<String>) {
-    if args.len() < 4 {
-        eprintln!("Usage: {} ssl <command> <args>", args[0]);
-        std::process::exit(1);
-    }
+pub async fn dump(domain: &str) -> Result<()> {
+    let spinner_style = ProgressStyle::with_template("{prefix:.bold.dim} {spinner} {wide_msg}")
+        .expect("static progress template")
+        .tick_chars("⠁⠂⠄⡀⢀⠠⠐⠈ ");
+    let pb = ProgressBar::new(1);
+    pb.set_style(spinner_style);
+    pb.set_prefix(format!("[{}/?]", 1));
+    pb.set_message(format!("Loading certificates for {}", domain));
 
-    match args[2].as_str() {
-        "dump" => {
-            let spinner_style = ProgressStyle::with_template("{prefix:.bold.dim} {spinner} {wide_msg}")
-                .unwrap()
-                .tick_chars("⠁⠂⠄⡀⢀⠠⠐⠈ ");
-            let pb = ProgressBar::new(1);
-            pb.set_style(spinner_style.clone());
-            pb.set_prefix(format!("[{}/?]",  1));
-            pb.set_message(format!("Loading certificates for {}", args[3]));
-            match fetch_certificates(&args[3]).await {
-                Ok(certs) => {
-                    pb.finish_with_message("done");
-                    println!("Found {} certificates:", certs.len());
-                    for cert in certs {
-                        println!(
-                            "- [{}] {}",
-                            cert.entry_timestamp,
-                            cert.name_value.replace("\n", ", ")
-                        );
-                    }
-                }
-                Err(e) => eprintln!("Error fetching certs: {}", e),
-            }
-        }
-        _ => {
-            eprintln!("Unknown SSL command: {}", args[1]);
-        }
+    let certs = fetch_certificates(domain).await
+        .context("Failed to fetch certificates")?;
+
+    pb.finish_with_message("done");
+    println!("Found {} certificates:", certs.len());
+    for cert in certs {
+        println!(
+            "- [{}] {}",
+            cert.entry_timestamp,
+            cert.name_value.replace("\n", ", ")
+        );
     }
+    Ok(())
 }
 
-pub async fn fetch_certificates(domain: &str) -> Result<Vec<CertificateEntry>, reqwest::Error> {
-    let url = format!(
-        "https://crt.sh/?q={}&output=json",
-        domain
-    );
-
+async fn fetch_certificates(domain: &str) -> Result<Vec<CertificateEntry>> {
+    let url = format!("https://crt.sh/?q={}&output=json", domain);
     let client = Client::new();
-    let resp = client.get(&url).send().await?;
+    let resp = client.get(&url).send().await
+        .context("HTTP request to crt.sh failed")?;
+
     if resp.status().is_success() {
-        let v:Value = resp.json().await?;
-
-        let mut certs:Vec<CertificateEntry> = serde_json::from_value(v).unwrap_or_else(|_| {
-            eprintln!("Failed to parse JSON response");
-            vec![]
-        });
-
-        // Supprimer les doublons de noms
+        let v: Value = resp.json().await
+            .context("Failed to parse JSON response body")?;
+        let mut certs: Vec<CertificateEntry> = serde_json::from_value(v)
+            .unwrap_or_else(|_| {
+                eprintln!("Failed to parse certificate entries");
+                vec![]
+            });
         certs.sort_by(|a, b| a.name_value.cmp(&b.name_value));
         certs.dedup_by(|a, b| a.name_value == b.name_value);
-
         Ok(certs)
     } else {
         eprintln!("Failed to fetch certificates: {}", resp.status());
         Ok(vec![])
     }
 }
-
-
-
