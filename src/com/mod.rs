@@ -5,3 +5,4 @@ pub mod reg;
 pub mod domain;
 pub mod diskinfo;
 pub mod carve;
+pub mod hash;

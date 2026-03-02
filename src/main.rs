@@ -2,7 +2,7 @@ use clap::{Parser, Subcommand};
 use anyhow::Result;
 
 extern crate rex;
-use rex::com::{ssl, file, net, reg, domain, diskinfo, carve};
+use rex::com::{ssl, file, net, reg, domain, diskinfo, carve, hash};
 
 #[derive(Parser)]
 #[command(
@@ -48,6 +48,11 @@ enum Commands {
     Domain {
         #[command(subcommand)]
         command: DomainCommands,
+    },
+    /// Identify hash type from a hash string
+    Hash {
+        #[command(subcommand)]
+        command: HashCommands,
     },
     /// Display disk information
     Diskinfo,
@@ -168,6 +173,15 @@ enum MailCommands {
     },
 }
 
+#[derive(Subcommand)]
+enum HashCommands {
+    /// Detect the type of a hash (interactive if no hash provided)
+    Detect {
+        /// Hash string to identify (omit for interactive input)
+        hash: Option<String>,
+    },
+}
+
 #[tokio::main]
 async fn main() -> Result<()> {
     let cli = Cli::parse();
@@ -205,6 +219,9 @@ async fn main() -> Result<()> {
             DomainCommands::Typosquat { domain, output, method } => {
                 domain::typosquat(&domain, output.as_deref(), method.as_deref())?;
             }
+        },
+        Commands::Hash { command } => match command {
+            HashCommands::Detect { hash: h } => hash::detect(h.as_deref())?,
         },
         Commands::Diskinfo => diskinfo::run()?,
         Commands::Carve { image, all, only_deleted, output } => {
