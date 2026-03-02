@@ -2,7 +2,7 @@ use clap::{Parser, Subcommand};
 use anyhow::Result;
 
 extern crate rex;
-use rex::com::{ssl, file, net, reg, domain, diskinfo, carve, hash};
+use rex::com::{ssl, file, net, reg, domain, diskinfo, carve, hash, bruteforce};
 
 #[derive(Parser)]
 #[command(
@@ -180,6 +180,24 @@ enum HashCommands {
         /// Hash string to identify (omit for interactive input)
         hash: Option<String>,
     },
+    /// Bruteforce a hash (interactive if no args provided)
+    Bruteforce {
+        /// Hash algorithm (md5, sha1, sha256, sha512)
+        #[arg(long)]
+        algo: Option<String>,
+        /// Target hash to crack
+        #[arg(long)]
+        target: Option<String>,
+        /// Known password prefix
+        #[arg(long, default_value = "")]
+        prefix: Option<String>,
+        /// Number of extra characters to bruteforce
+        #[arg(long)]
+        extra: Option<usize>,
+        /// Charset: lower, upper, digits, alpha, alphanumeric, all
+        #[arg(long)]
+        charset: Option<String>,
+    },
 }
 
 #[tokio::main]
@@ -222,6 +240,15 @@ async fn main() -> Result<()> {
         },
         Commands::Hash { command } => match command {
             HashCommands::Detect { hash: h } => hash::detect(h.as_deref())?,
+            HashCommands::Bruteforce { algo, target, prefix, extra, charset } => {
+                bruteforce::run(
+                    algo.as_deref(),
+                    target.as_deref(),
+                    prefix.as_deref(),
+                    extra,
+                    charset.as_deref(),
+                )?;
+            }
         },
         Commands::Diskinfo => diskinfo::run()?,
         Commands::Carve { image, all, only_deleted, output } => {

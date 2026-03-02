@@ -22,6 +22,10 @@ regex = "1.11.1"
 chrono = "0.4.41"
 sysinfo = "0.30"
 infer = "0.13"
+md-5 = "0.10"
+sha1 = "0.10"
+sha2 = "0.10"
+digest = "0.10"
 
 [dependencies.uuid]
 version = "1.17.0"
